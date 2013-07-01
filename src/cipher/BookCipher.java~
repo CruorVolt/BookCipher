@@ -1,0 +1,91 @@
+package cipher;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.util.ArrayList;
+import java.util.Scanner;
+import java.security.SecureRandom;
+
+public class BookCipher {
+
+	public static String encrypt(String plaintext, File key, int keyStartLine, 
+			int keyStartChar, boolean encryptSpaces, boolean ignoreCase) throws FileNotFoundException {
+		
+		String ciphertext = "";
+		
+		ArrayList<String> lines = FileReader.read(key);
+		char[] plainarray = plaintext.toCharArray();
+		int lineindex;
+		int charindex;
+		boolean charmatch = false;
+		IndexTracking found = new IndexTracking();
+		SecureRandom randomIndex = new SecureRandom();
+		
+		//Find character index
+		int location;
+		for (char currentchar: plainarray) {
+			lineindex = keyStartLine;
+			charindex = keyStartChar;
+			do {
+				location = lines.get(lineindex).indexOf(currentchar, charindex);
+				if ( (location < 0) ^ (found.find(currentchar) < 0) ) {
+					lineindex += 1;
+					charindex = 0;
+				} else {
+					charmatch = true;
+					found.put(lineindex, location, currentchar);
+					ciphertext = ciphertext + (lineindex +1) + ":" + (location + 1) + " ";
+				}
+			} while ( ( lineindex < (lines.size() - 1 ) ) && (!charmatch) );
+			//File end reached without match
+			if (!charmatch) {
+				int randomline = randomIndex.nextInt( (int) Math.ceil(lines.size() / 4) );
+				int randomchar = lines.get(randomline + 1).length() + randomIndex.nextInt(10);
+				ciphertext = ciphertext + randomline + ":" + randomchar + " ";
+			}
+			charmatch = false;
+		}
+		return ciphertext;
+	}
+	
+	public static String decrypt(String ciphertext, File key) throws FileNotFoundException {
+		
+		String plaintext = "";
+		String formaterrormessage = " (ERROR: The ciphertext looks incorrectly formatted. " +
+				"Correctly formatted ciphertext looks like numerical tuples (##:###) seperated by spaces.";
+		boolean formaterror = false;
+		ArrayList<String> lines = FileReader.read(key);
+		String[] encryptedtuples = ciphertext.split(" ");
+		int lineindex;
+		int charindex;
+		
+		for ( String tuple : encryptedtuples ) {
+			String[] indices = tuple.split(":", 2);
+			try {
+				lineindex = Integer.valueOf(indices[0]);
+				charindex = Integer.valueOf(indices[1]);
+				try {
+					//Encrypted lines/chars have natural numbering (begin with 1) 
+					if ( ( lineindex == 0 ) || ( charindex == 0 ) ) {
+						plaintext = plaintext + "#";
+					}
+					else {
+						char currentchar = lines.get(lineindex - 1).charAt(charindex - 1);
+						plaintext = plaintext + currentchar;
+					}
+				} catch (IndexOutOfBoundsException i) {
+					plaintext = addErrorChar(plaintext);
+				}
+			} catch(NumberFormatException e) {
+				plaintext = addErrorChar(plaintext);
+				formaterror = true;
+			}
+		}
+		if (formaterror) { plaintext = plaintext + formaterrormessage; }
+		return plaintext;
+	}
+	
+	public static String addErrorChar(String current) {
+		return current + "#";
+	}
+}
